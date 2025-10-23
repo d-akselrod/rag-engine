@@ -12,11 +12,21 @@ logger = logging.getLogger(__name__)
 
 
 class RAGService:
-    """Orchestration service for ingestion, semantic retrieval, and reranking."""
+    """Orchestration service for ingestion, semantic retrieval, reranking, and generation."""
 
     def __init__(self):
         genai.configure(api_key=settings.gemini_api_key)
         self.model_name = settings.chat_model
+        try:
+            self.chat_model = genai.GenerativeModel(self.model_name)
+        except Exception:
+            for fallback in ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-flash-latest"]:
+                try:
+                    self.chat_model = genai.GenerativeModel(fallback)
+                    self.model_name = fallback
+                    break
+                except Exception:
+                    continue
 
     def add_document(
         self,
@@ -91,6 +101,7 @@ class RAGService:
         query_text: str,
         top_k: int,
     ) -> List[Dict[str, Any]]:
+        """Re-score candidates using fresh query and candidate document embeddings."""
         query_emb = np.array(embedding_service.embed_query(query_text), dtype=np.float32)
         q_norm = np.linalg.norm(query_emb)
         if q_norm > 0:
@@ -112,6 +123,97 @@ class RAGService:
 
         reranked.sort(key=lambda x: x["similarity"], reverse=True)
         return reranked[:top_k]
+
+    def chat(
+        self,
+        db: Session,
+        user_message: str,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
+        search_type: str = "cosine",
+        top_k: int = 3,
+        temperature: float = 0.7,
+        system_prompt: Optional[str] = None,
+        rerank: bool = False,
+        rerank_top_k: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Perform RAG chat: contextual retrieval -> prompt synthesis -> LLM response."""
+        # Synthesize retrieval query from user message and recent turn context
+        retrieval_query = user_message
+        if conversation_history:
+            recent_user_turns = [
+                m["content"] for m in conversation_history[-3:] if m.get("role") == "user"
+            ]
+            if recent_user_turns:
+                retrieval_query = f"{' '.join(recent_user_turns)} {user_message}"
+
+        context_chunks = self.retrieve_context(
+            db=db,
+            query=retrieval_query,
+            search_type=search_type,
+            top_k=top_k,
+            rerank=rerank,
+            rerank_top_k=rerank_top_k,
+        )
+
+        # Assemble prompt
+        default_prompt = (
+            "You are a helpful knowledge assistant with access to relevant context excerpts from a verified knowledge base. "
+            "Use the provided context to answer questions truthfully and precisely. "
+            "If the context does not contain the answer, acknowledge the limitation and answer based on general knowledge."
+        )
+        sys_instruction = system_prompt or default_prompt
+
+        context_block = ""
+        if context_chunks:
+            items = [f"[Source {i+1}] {c['content']}" for i, c in enumerate(context_chunks)]
+            context_block = "\n\n".join(items)
+
+        history_block = ""
+        if conversation_history:
+            lines = [
+                f"{'User' if m.get('role') == 'user' else 'Assistant'}: {m.get('content', '')}"
+                for m in conversation_history
+            ]
+            history_block = "\n".join(lines)
+
+        prompt_parts = [sys_instruction]
+        if history_block:
+            prompt_parts.append(f"Conversation History:\n{history_block}")
+        if context_block:
+            prompt_parts.append(f"Context from Knowledge Base:\n{context_block}")
+        else:
+            prompt_parts.append("Note: No relevant context found in knowledge base.")
+        prompt_parts.append(f"User Question: {user_message}\n\nAnswer:")
+
+        full_prompt = "\n\n".join(prompt_parts)
+
+        try:
+            response = self.chat_model.generate_content(
+                full_prompt,
+                generation_config={
+                    "temperature": temperature,
+                    "max_output_tokens": 1024,
+                },
+            )
+            answer = response.text
+        except Exception as e:
+            logger.error("Error generating chat completion: %s", e)
+            answer = f"Error generating response: {e}"
+
+        return {
+            "response": answer,
+            "user_message": user_message,
+            "context_used": len(context_chunks),
+            "context_chunks": [
+                {
+                    "content": (c["content"][:240] + "...") if len(c["content"]) > 240 else c["content"],
+                    "similarity": round(c["similarity"], 4),
+                    "document_id": c.get("document_id"),
+                }
+                for c in context_chunks
+            ],
+            "model": self.model_name,
+        }
 
 
 rag_service = RAGService()
