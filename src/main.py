@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from src.config import settings
 from src.database import get_db, engine, Base
 from src.schemas import (
+    ChatRequest,
+    ChatResponse,
     HealthResponse,
     QueryRequest,
     QueryResponse,
@@ -103,6 +105,40 @@ async def add_content(request: AddContentRequest, db: Session = Depends(get_db))
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ingestion failed: {e}")
+
+
+@app.post("/chat", response_model=ChatResponse, tags=["Generation"])
+async def chat_with_rag(request: ChatRequest, db: Session = Depends(get_db)):
+    try:
+        history = (
+            [{"role": m.role, "content": m.content} for m in request.conversation_history]
+            if request.conversation_history
+            else None
+        )
+
+        result = rag_service.chat(
+            db=db,
+            user_message=request.message,
+            conversation_history=history,
+            search_type=request.search_type,
+            top_k=request.top_k,
+            temperature=request.temperature,
+            system_prompt=request.system_prompt,
+            rerank=request.rerank,
+            rerank_top_k=request.rerank_top_k,
+        )
+
+        return ChatResponse(
+            response=result["response"],
+            user_message=result["user_message"],
+            context_used=result["context_used"],
+            context_chunks=result["context_chunks"],
+            model=result["model"],
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chat generation failed: {e}")
 
 
 if __name__ == "__main__":
