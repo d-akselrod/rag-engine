@@ -1,39 +1,53 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import List
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from src.config import settings
 from src.database import get_db, engine, Base
+from src.models import DocumentChunk
 from src.schemas import (
-    ChatRequest,
-    ChatResponse,
     HealthResponse,
     QueryRequest,
     QueryResponse,
     ChunkDetail,
     AddContentRequest,
     AddContentResponse,
+    ChatRequest,
+    ChatResponse,
 )
 from src.services.rag import rag_service
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Ensure database schema is ready on startup
     Base.metadata.create_all(bind=engine)
     yield
 
 
 app = FastAPI(
     title="RAG Engine API",
-    description="Retrieval Augmented Generation API with PostgreSQL pgvector and Gemini",
+    description="Production-grade Retrieval Augmented Generation API with PostgreSQL, pgvector, and Google Gemini",
     version="1.0.0",
     lifespan=lifespan,
 )
 
+static_dir = Path("static")
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+
+    @app.get("/", include_in_schema=False)
+    async def root():
+        return FileResponse(static_dir / "index.html")
+
 
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 async def health_check():
+    """Verify service health and active model configurations."""
     return HealthResponse(
         status="healthy",
         service="rag-engine",
@@ -45,6 +59,7 @@ async def health_check():
 
 @app.post("/query", response_model=QueryResponse, tags=["Retrieval"])
 async def query_knowledge_base(request: QueryRequest, db: Session = Depends(get_db)):
+    """Semantic vector search across document chunks stored in pgvector."""
     try:
         chunks = rag_service.retrieve_context(
             db=db,
@@ -85,6 +100,7 @@ async def query_knowledge_base(request: QueryRequest, db: Session = Depends(get_
 
 @app.post("/content", response_model=AddContentResponse, tags=["Ingestion"])
 async def add_content(request: AddContentRequest, db: Session = Depends(get_db)):
+    """Ingest new content into the vector database, with optional automatic chunking."""
     try:
         chunk_ids = rag_service.add_document(
             db=db,
@@ -109,6 +125,7 @@ async def add_content(request: AddContentRequest, db: Session = Depends(get_db))
 
 @app.post("/chat", response_model=ChatResponse, tags=["Generation"])
 async def chat_with_rag(request: ChatRequest, db: Session = Depends(get_db)):
+    """Conversational RAG: retrieves relevant chunks, synthesizes context, and returns answer."""
     try:
         history = (
             [{"role": m.role, "content": m.content} for m in request.conversation_history]

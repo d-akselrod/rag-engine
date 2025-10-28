@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Engine · PostgreSQL pgvector</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-base: #090a0f;
+            --bg-surface: #11131a;
+            --bg-surface-elevated: #181b24;
+            --bg-border: #232734;
+            --bg-border-hover: #343a4e;
+            --text-primary: #f0f2f8;
+            --text-secondary: #949cb3;
+            --text-muted: #626980;
+            --accent-primary: #3b82f6;
+            --accent-hover: #2563eb;
+            --accent-soft: rgba(59, 130, 246, 0.12);
+            --success: #10b981;
+            --user-bubble: #1e2433;
+            --code-bg: #0b0d14;
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-base);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Top Navigation Header */
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.85rem 1.75rem;
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--bg-border);
+            z-index: 20;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .brand-logo {
+            width: 28px;
+            height: 28px;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 0.85rem;
+        }
+
+        .brand-title {
+            font-size: 0.95rem;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .badge {
+            font-size: 0.7rem;
+            font-weight: 500;
+            padding: 0.15rem 0.5rem;
+            border-radius: 9999px;
+            background: var(--bg-surface-elevated);
+            color: var(--text-secondary);
+            border: 1px solid var(--bg-border);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            background: var(--bg-surface-elevated);
+            padding: 0.35rem 0.75rem;
+            border-radius: 9999px;
+            border: 1px solid var(--bg-border);
+        }
+
+        .status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--success);
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+        }
+
+        .btn {
+            background: var(--bg-surface-elevated);
+            color: var(--text-primary);
+            border: 1px solid var(--bg-border);
+            border-radius: var(--radius-sm);
+            padding: 0.4rem 0.8rem;
+            font-size: 0.82rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            transition: all 0.15s ease;
+        }
+
+        .btn:hover {
+            background: var(--bg-border);
+            border-color: var(--bg-border-hover);
+        }
+
+        .btn-primary {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            border-color: var(--accent-hover);
+        }
+
+        /* Main Chat Viewport */
+        main {
+            flex: 1;
+            overflow-y: auto;
+            padding: 2rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-container {
+            max-width: 760px;
+            width: 100%;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            flex: 1;
+        }
+
+        /* Empty / Welcome State */
+        .empty-state {
+            margin: auto 0;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 3rem 1rem;
+        }
+
+        .empty-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: var(--accent-soft);
+            color: var(--accent-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.25rem;
+        }
+
+        .empty-title {
+            font-size: 1.35rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.02em;
+        }
+
+        .empty-subtitle {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            max-width: 440px;
+            line-height: 1.5;
+            margin-bottom: 2rem;
+        }
+
+        .suggestion-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            justify-content: center;
+            max-width: 600px;
+        }
+
+        .suggestion-chip {
+            background: var(--bg-surface);
+            border: 1px solid var(--bg-border);
+            border-radius: 9999px;
+            padding: 0.45rem 0.95rem;
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .suggestion-chip:hover {
+            border-color: var(--accent-primary);
+            color: var(--text-primary);
+            background: var(--bg-surface-elevated);
+        }
+
+        /* Message Bubbles */
+        .message-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        .message-group.user {
+            align-items: flex-end;
+        }
+
+        .message-group.assistant {
+            align-items: flex-start;
+        }
+
+        .message-role {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin: 0 0.25rem;
+        }
+
+        .message-bubble {
+            max-width: 88%;
+            padding: 0.85rem 1.15rem;
+            border-radius: var(--radius-md);
+            font-size: 0.92rem;
+            line-height: 1.6;
+            word-break: break-word;
+        }
+
+        .message-group.user .message-bubble {
+            background: var(--user-bubble);
+            border: 1px solid var(--bg-border);
+            border-bottom-right-radius: 2px;
+            color: var(--text-primary);
+        }
+
+        .message-group.assistant .message-bubble {
+            background: var(--bg-surface);
+            border: 1px solid var(--bg-border);
+            border-bottom-left-radius: 2px;
+            color: var(--text-primary);
+        }
+
+        /* Markdown Elements in Bubble */
+        .message-bubble p {
+            margin-bottom: 0.65rem;
+        }
+        .message-bubble p:last-child {
+            margin-bottom: 0;
+        }
+
+        .message-bubble strong {
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .message-bubble code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82em;
+            background: var(--code-bg);
+            border: 1px solid var(--bg-border);
+            padding: 0.15rem 0.35rem;
+            border-radius: 4px;
+            color: #e2e8f0;
+        }
+
+        .message-bubble pre {
+            background: var(--code-bg);
+            border: 1px solid var(--bg-border);
+            border-radius: var(--radius-sm);
+            padding: 0.75rem 1rem;
+            overflow-x: auto;
+            margin: 0.65rem 0;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82rem;
+            color: #cbd5e1;
+        }
+
+        .message-bubble pre code {
+            background: none;
+            border: none;
+            padding: 0;
+        }
+
+        .message-bubble ul, .message-bubble ol {
+            padding-left: 1.4rem;
+            margin-bottom: 0.65rem;
+        }
+
+        .message-bubble li {
+            margin-bottom: 0.25rem;
+        }
+
+        /* Collapsible Retrieved Sources Card */
+        .sources-card {
+            max-width: 88%;
+            margin-top: 0.35rem;
+            border: 1px solid var(--bg-border);
+            border-radius: var(--radius-sm);
+            background: var(--bg-surface);
+            overflow: hidden;
+        }
+
+        .sources-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem 0.85rem;
+            cursor: pointer;
+            user-select: none;
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            transition: background 0.15s ease;
+        }
+
+        .sources-header:hover {
+            background: var(--bg-surface-elevated);
+            color: var(--text-primary);
+        }
+
+        .sources-header-left {
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+        }
+
+        .sources-chevron {
+            transition: transform 0.2s ease;
+        }
+
+        .sources-card.open .sources-chevron {
+            transform: rotate(90deg);
+        }
+
+        .sources-content {
+            display: none;
+            padding: 0.6rem 0.85rem;
+            border-top: 1px solid var(--bg-border);
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .sources-card.open .sources-content {
+            display: flex;
+        }
+
+        .source-item {
+            background: var(--bg-surface-elevated);
+            border: 1px solid var(--bg-border);
+            border-radius: var(--radius-sm);
+            padding: 0.6rem 0.75rem;
+            font-size: 0.8rem;
+            line-height: 1.5;
+        }
+
+        .source-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.3rem;
+            font-size: 0.72rem;
+            color: var(--text-muted);
+        }
+
+        .source-tag {
+            color: var(--accent-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 500;
+        }
+
+        /* Footer Input Area */
+        footer {
+            background: var(--bg-surface);
+            border-top: 1px solid var(--bg-border);
+            padding: 1.1rem 1.5rem;
+            z-index: 10;
+        }
+
+        .input-bar {
+            max-width: 760px;
+            margin: 0 auto;
+            position: relative;
+            display: flex;
+            align-items: flex-end;
+            background: var(--bg-base);
+            border: 1px solid var(--bg-border);
+            border-radius: var(--radius-lg);
+            padding: 0.4rem 0.5rem 0.4rem 1rem;
+            transition: border-color 0.2s ease;
+        }
+
+        .input-bar:focus-within {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 1px var(--accent-primary);
+        }
+
+        textarea {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.92rem;
+            line-height: 1.5;
+            resize: none;
+            max-height: 160px;
+            min-height: 38px;
+            padding: 0.4rem 0.5rem 0.4rem 0;
+        }
+
+        textarea::placeholder {
+            color: var(--text-muted);
+        }
+
+        .send-btn {
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+            border-radius: var(--radius-md);
+            width: 36px;
+            height: 36px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: background 0.15s ease, opacity 0.15s ease;
+        }
+
+        .send-btn:hover {
+            background: var(--accent-hover);
+        }
+
+        .send-btn:disabled {
+            background: var(--bg-border);
+            color: var(--text-muted);
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        /* Modals & Popovers */
+        .modal-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-backdrop.open {
+            display: flex;
+        }
+
+        .modal-dialog {
+            background: var(--bg-surface);
+            border: 1px solid var(--bg-border);
+            border-radius: var(--radius-lg);
+            width: 92%;
+            max-width: 520px;
+            padding: 1.5rem;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+        }
+
+        .modal-desc {
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            margin-bottom: 1.25rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 0.35rem;
+        }
+
+        .form-control {
+            width: 100%;
+            background: var(--bg-base);
+            border: 1px solid var(--bg-border);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.88rem;
+            padding: 0.55rem 0.75rem;
+            outline: none;
+        }
+
+        .form-control:focus {
+            border-color: var(--accent-primary);
+        }
+
+        textarea.form-control {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.6rem;
+            margin-top: 1.5rem;
+        }
+
+        /* Settings Popover */
+        .popover {
+            display: none;
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            background: var(--bg-surface);
+            border: 1px solid var(--bg-border);
+            border-radius: var(--radius-md);
+            width: 260px;
+            padding: 1rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+            z-index: 50;
+        }
+
+        .popover.open {
+            display: block;
+        }
+
+        .popover-header {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.75rem;
+            border-bottom: 1px solid var(--bg-border);
+            padding-bottom: 0.5rem;
+        }
+
+        /* Typing indicator */
+        .typing-indicator {
+            display: inline-flex;
+            gap: 4px;
+            align-items: center;
+            padding: 0.4rem 0;
+        }
+
+        .typing-dot {
+            width: 5px;
+            height: 5px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            animation: bounce 1.2s infinite ease-in-out;
+        }
+
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-4px); }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="brand">
+            <div class="brand-logo">R</div>
+            <div class="brand-title">
+                RAG Engine
+                <span class="badge" id="modelBadge">gemini-3.8-flash</span>
+            </div>
+        </div>
+        <div class="header-actions">
+            <div class="status-pill">
+                <span class="status-dot"></span>
+                <span id="dbStatus">pgvector ready</span>
+            </div>
+            <div style="position: relative;">
+                <button class="btn" id="settingsBtn" title="Retrieval Settings">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                    Settings
+                </button>
+                <div class="popover" id="settingsPopover">
+                    <div class="popover-header">Retrieval Parameters</div>
+                    <div class="form-group">
+                        <label>Distance Metric</label>
+                        <select class="form-control" id="searchType">
+                            <option value="cosine">Cosine Distance</option>
+                            <option value="l2">Euclidean (L2)</option>
+                            <option value="inner_product">Inner Product</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Context Chunks (top_k)</label>
+                        <input type="number" class="form-control" id="topK" value="3" min="1" max="10">
+                    </div>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="rerank"> Re-rank candidates
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-primary" id="addKnowledgeBtn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Add Knowledge
+            </button>
+        </div>
+    </header>
+
+    <main id="chatMain">
+        <div class="chat-container" id="chatContainer">
+            <div class="empty-state" id="emptyState">
+                <div class="empty-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                </div>
+                <h2 class="empty-title">Ask your knowledge base</h2>
+                <p class="empty-subtitle">Questions are answered using contextual semantic search powered by PostgreSQL pgvector and Gemini 3.8 Flash.</p>
+                <div class="suggestion-grid">
+                    <button class="suggestion-chip" onclick="askPrompt(this.innerText)">What is FastAPI and what are its benefits?</button>
+                    <button class="suggestion-chip" onclick="askPrompt(this.innerText)">How does pgvector perform vector similarity search?</button>
+                    <button class="suggestion-chip" onclick="askPrompt(this.innerText)">Explain the RAG architectural pattern</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="input-bar">
+            <textarea id="userInput" placeholder="Ask a question or explore your knowledge base..." rows="1"></textarea>
+            <button class="send-btn" id="sendBtn" title="Send message (Enter)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+            </button>
+        </div>
+    </footer>
+
+    <!-- Ingest Knowledge Modal -->
+    <div class="modal-backdrop" id="knowledgeModal">
+        <div class="modal-dialog">
+            <h3 class="modal-title">Add Document to Knowledge Base</h3>
+            <p class="modal-desc">Text is embedded with Gemini Embedding 2 and indexed in PostgreSQL pgvector.</p>
+            <div class="form-group">
+                <label>Document Identifier (Optional)</label>
+                <input type="text" class="form-control" id="docId" placeholder="e.g. system_architecture_v1">
+            </div>
+            <div class="form-group">
+                <label>Document Content</label>
+                <textarea class="form-control" id="docContent" placeholder="Paste notes, documentation, or articles here..."></textarea>
+            </div>
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="autoChunk" checked> Automatically split long documents into overlapping chunks
+                </label>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" id="cancelModal">Cancel</button>
+                <button class="btn btn-primary" id="saveKnowledge">Ingest Document</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let conversationHistory = [];
+
+        const chatContainer = document.getElementById('chatContainer');
+        const chatMain = document.getElementById('chatMain');
+        const userInput = document.getElementById('userInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const settingsBtn = document.getElementById('settingsBtn');
+        const settingsPopover = document.getElementById('settingsPopover');
+        const addKnowledgeBtn = document.getElementById('addKnowledgeBtn');
+        const knowledgeModal = document.getElementById('knowledgeModal');
+
+        // Check backend health
+        async function checkHealth() {
+            try {
+                const res = await fetch(`${API_BASE}/health`);
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('modelBadge').textContent = data.chat_model;
+                    document.getElementById('dbStatus').textContent = "pgvector ready";
+                }
+            } catch (err) {
+                document.getElementById('dbStatus').textContent = "offline";
+            }
+        }
+        checkHealth();
+
+        // Simple Markdown Formatter
+        function formatMarkdown(text) {
+            if (!text) return "";
+            let html = text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+
+            // Code blocks
+            html = html.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (match, lang, code) => {
+                return `<pre><code>${code.trim()}</code></pre>`;
+            });
+
+            // Inline code
+            html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+            // Bold
+            html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+            // Italic
+            html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+
+            // Paragraphs & newlines
+            const paragraphs = html.split(/\n\n+/);
+            return paragraphs.map(p => {
+                if (p.startsWith('<pre>')) return p;
+                return `<p>${p.replace(/\n/g, '<br>')}</p>`;
+            }).join('');
+        }
+
+        function removeEmptyState() {
+            const empty = document.getElementById('emptyState');
+            if (empty) empty.remove();
+        }
+
+        function appendMessage(role, content, contextChunks = null) {
+            removeEmptyState();
+            const group = document.createElement('div');
+            group.className = `message-group ${role}`;
+
+            const roleLabel = document.createElement('div');
+            roleLabel.className = 'message-role';
+            roleLabel.textContent = role === 'user' ? 'You' : 'Assistant';
+            group.appendChild(roleLabel);
+
+            const bubble = document.createElement('div');
+            bubble.className = 'message-bubble';
+            bubble.innerHTML = formatMarkdown(content);
+            group.appendChild(bubble);
+
+            if (role === 'assistant' && contextChunks && contextChunks.length > 0) {
+                const card = document.createElement('div');
+                card.className = 'sources-card';
+
+                const header = document.createElement('div');
+                header.className = 'sources-header';
+                header.innerHTML = `
+                    <div class="sources-header-left">
+                        <svg class="sources-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        <span>${contextChunks.length} source chunk${contextChunks.length > 1 ? 's' : ''} retrieved</span>
+                    </div>
+                    <span style="font-size:0.7rem;font-family:'JetBrains Mono',monospace;">top match: ${(contextChunks[0].similarity * 100).toFixed(1)}%</span>
+                `;
+
+                const body = document.createElement('div');
+                body.className = 'sources-content';
+
+                contextChunks.forEach((chunk, i) => {
+                    const item = document.createElement('div');
+                    item.className = 'source-item';
+                    const docTag = chunk.document_id ? ` · ${chunk.document_id}` : '';
+                    item.innerHTML = `
+                        <div class="source-meta">
+                            <span class="source-tag">Source #${i+1}${docTag}</span>
+                            <span>${(chunk.similarity * 100).toFixed(1)}% similarity</span>
+                        </div>
+                        <div>${formatMarkdown(chunk.content)}</div>
+                    `;
+                    body.appendChild(item);
+                });
+
+                header.addEventListener('click', () => card.classList.toggle('open'));
+                card.appendChild(header);
+                card.appendChild(body);
+                group.appendChild(card);
+            }
+
+            chatContainer.appendChild(group);
+            chatMain.scrollTop = chatMain.scrollHeight;
+        }
+
+        async function submitChat() {
+            const text = userInput.value.trim();
+            if (!text) return;
+
+            appendMessage('user', text);
+            userInput.value = '';
+            userInput.style.height = 'auto';
+            sendBtn.disabled = true;
+
+            // Typing indicator
+            const loadingGroup = document.createElement('div');
+            loadingGroup.className = 'message-group assistant';
+            loadingGroup.innerHTML = `
+                <div class="message-role">Assistant</div>
+                <div class="message-bubble">
+                    <div class="typing-indicator">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                </div>
+            `;
+            chatContainer.appendChild(loadingGroup);
+            chatMain.scrollTop = chatMain.scrollHeight;
+
+            try {
+                const payload = {
+                    message: text,
+                    conversation_history: conversationHistory,
+                    search_type: document.getElementById('searchType').value,
+                    top_k: parseInt(document.getElementById('topK').value),
+                    rerank: document.getElementById('rerank').checked,
+                };
+
+                const res = await fetch(`${API_BASE}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                loadingGroup.remove();
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    appendMessage('assistant', `**Error:** ${err.detail || 'Failed to generate response'}`);
+                    return;
+                }
+
+                const data = await res.json();
+                appendMessage('assistant', data.response, data.context_chunks);
+                conversationHistory.push({ role: 'user', content: text });
+                conversationHistory.push({ role: 'assistant', content: data.response });
+                if (conversationHistory.length > 20) conversationHistory = conversationHistory.slice(-20);
+            } catch (e) {
+                loadingGroup.remove();
+                appendMessage('assistant', `**Network Error:** Could not connect to API server.`);
+            } finally {
+                sendBtn.disabled = false;
+            }
+        }
+
+        function askPrompt(promptText) {
+            userInput.value = promptText;
+            submitChat();
+        }
+
+        // Add knowledge modal handler
+        async function handleAddDocument() {
+            const content = document.getElementById('docContent').value.trim();
+            const docId = document.getElementById('docId').value.trim() || null;
+            const autoChunk = document.getElementById('autoChunk').checked;
+
+            if (!content) return;
+            const saveBtn = document.getElementById('saveKnowledge');
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Embedding...';
+
+            try {
+                const res = await fetch(`${API_BASE}/content`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        content,
+                        document_id: docId,
+                        auto_chunk: autoChunk
+                    })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    knowledgeModal.classList.remove('open');
+                    document.getElementById('docContent').value = '';
+                    document.getElementById('docId').value = '';
+                    appendMessage('assistant', `*Successfully ingested **${data.total_chunks}** chunk(s) into pgvector knowledge base.*`);
+                } else {
+                    const err = await res.json();
+                    alert(`Ingestion error: ${err.detail}`);
+                }
+            } catch (e) {
+                alert(`Error connecting to server: ${e.message}`);
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Ingest Document';
+            }
+        }
+
+        // Event listeners
+        sendBtn.addEventListener('click', submitChat);
+        userInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                submitChat();
+            }
+        });
+        userInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 160) + 'px';
+        });
+
+        settingsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            settingsPopover.classList.toggle('open');
+        });
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#settingsPopover') && !e.target.closest('#settingsBtn')) {
+                settingsPopover.classList.remove('open');
+            }
+        });
+
+        addKnowledgeBtn.addEventListener('click', () => knowledgeModal.classList.add('open'));
+        document.getElementById('cancelModal').addEventListener('click', () => knowledgeModal.classList.remove('open'));
+        document.getElementById('saveKnowledge').addEventListener('click', handleAddDocument);
+        knowledgeModal.addEventListener('click', (e) => {
+            if (e.target === knowledgeModal) knowledgeModal.classList.remove('open');
+        });
+    </script>
+</body>
+</html>
