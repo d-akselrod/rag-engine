@@ -66,7 +66,7 @@ try:
     if response.status_code == 200:
         data = response.json()
         print(f"\n[OK] Chat response received!")
-        print(f"\nUser Question: {data['user_message']']}")
+        print(f"\nUser Question: {data['user_message']}")
         print(f"\nAI Response:")
         print("-" * 70)
         print(data['response'])

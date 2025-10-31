@@ -16,7 +16,22 @@ class RAGService:
     def __init__(self):
         """Initialize the RAG service with Gemini API."""
         genai.configure(api_key=settings.gemini_api_key)
-        self.chat_model = genai.GenerativeModel('gemini-1.5-flash')
+        # Use the latest Gemini Flash model available
+        # Try newer models first, fallback to older ones
+        try:
+            self.chat_model = genai.GenerativeModel('gemini-2.0-flash-exp')
+            self.model_name = "gemini-2.0-flash-exp"
+        except:
+            try:
+                self.chat_model = genai.GenerativeModel('gemini-2.0-flash')
+                self.model_name = "gemini-2.0-flash"
+            except:
+                try:
+                    self.chat_model = genai.GenerativeModel('gemini-1.5-flash')
+                    self.model_name = "gemini-1.5-flash"
+                except:
+                    self.chat_model = genai.GenerativeModel('models/gemini-pro')
+                    self.model_name = "gemini-pro"
     
     def generate_embedding(self, text: str, task_type: str = "RETRIEVAL_QUERY") -> List[float]:
         """Generate embedding for given text using Gemini text-embedding-004.
@@ -171,7 +186,7 @@ Note: No relevant context was found in the knowledge base. Please provide a help
                     }
                     for chunk in relevant_chunks
                 ],
-                "model": "gemini-1.5-flash"
+                "model": self.model_name
             }
         except Exception as e:
             return {
@@ -179,7 +194,7 @@ Note: No relevant context was found in the knowledge base. Please provide a help
                 "user_message": user_message,
                 "context_used": len(relevant_chunks),
                 "context_chunks": [],
-                "model": "gemini-1.5-flash",
+                "model": self.model_name,
                 "error": str(e)
             }
 
