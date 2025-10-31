@@ -7,8 +7,12 @@ from src.database import get_db, engine, Base
 from src.services import rag_service
 from src.config import settings
 
-# Create database tables
-Base.metadata.create_all(bind=engine)
+# Create database tables (only if database is available)
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception:
+    # Database not available yet, will be created on first request
+    pass
 
 app = FastAPI(
     title="RAG Engine API",

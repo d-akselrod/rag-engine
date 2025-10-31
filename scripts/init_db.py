@@ -1,7 +1,11 @@
 """Script to initialize database and add sample data."""
 import sys
 import os
+from pathlib import Path
 from dotenv import load_dotenv
+
+# Add parent directory to path so we can import src modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Load environment variables
 load_dotenv()
@@ -88,7 +92,7 @@ def add_sample_data():
             chunk = DocumentChunk(
                 content=chunk_data["content"],
                 embedding=embedding,
-                metadata=chunk_data["metadata"],
+                chunk_metadata=chunk_data["metadata"],
                 document_id=chunk_data["document_id"],
                 chunk_index=chunk_data["chunk_index"]
             )

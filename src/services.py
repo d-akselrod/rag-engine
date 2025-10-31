@@ -14,15 +14,15 @@ class RAGService:
         genai.configure(api_key=settings.gemini_api_key)
     
     def generate_embedding(self, text: str, task_type: str = "RETRIEVAL_QUERY") -> List[float]:
-        """Generate embedding for given text using Gemini text-embedding-001.
+        """Generate embedding for given text using Gemini text-embedding-004.
         
         Args:
             text: Text to embed
             task_type: Either "RETRIEVAL_QUERY" for queries or "RETRIEVAL_DOCUMENT" for documents
         """
-        # Use the embedding model directly
+        # Use text-embedding-004 model
         result = genai.embed_content(
-            model="models/text-embedding-001",
+            model="models/text-embedding-004",
             content=text,
             task_type=task_type
         )
@@ -69,7 +69,7 @@ class RAGService:
             SELECT 
                 id,
                 content,
-                metadata,
+                chunk_metadata,
                 document_id,
                 chunk_index,
                 {similarity_func} as similarity
@@ -105,7 +105,7 @@ class RAGService:
             chunks.append({
                 "id": row.id,
                 "content": row.content,
-                "metadata": row.metadata,
+                "metadata": row.chunk_metadata,
                 "document_id": row.document_id,
                 "chunk_index": row.chunk_index,
                 "similarity": float(row.similarity)

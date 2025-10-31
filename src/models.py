@@ -12,8 +12,8 @@ class DocumentChunk(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     content = Column(Text, nullable=False, index=True)
-    embedding = Column(Vector(768), nullable=False)  # Gemini text-embedding-001 uses 768 dimensions
-    metadata = Column(Text, nullable=True)  # JSON string for additional metadata
+    embedding = Column(Vector(768), nullable=False)  # Gemini text-embedding-004 uses 768 dimensions
+    chunk_metadata = Column(Text, nullable=True)  # JSON string for additional metadata
     document_id = Column(String, nullable=True, index=True)
     chunk_index = Column(Integer, nullable=True)
     
