@@ -120,6 +120,36 @@ def test_query_inner_product():
         print(f"[FAIL] Inner product query test failed: {e}")
         return False
 
+def test_add_content():
+    """Test adding content endpoint."""
+    print("\n=== Testing Add Content Endpoint ===")
+    try:
+        payload = {
+            "content": "Natural language processing (NLP) is a field of AI that focuses on enabling computers to understand and process human language.",
+            "document_id": "doc6",
+            "chunk_index": 0,
+            "metadata": {"topic": "AI", "field": "NLP"}
+        }
+        response = requests.post(
+            f"{API_BASE_URL}/content",
+            json=payload,
+            timeout=30
+        )
+        print(f"Status Code: {response.status_code}")
+        if response.status_code == 200:
+            data = response.json()
+            print(f"Added chunk_id: {data['chunk_id']}")
+            print(f"Document ID: {data['document_id']}")
+            print("[OK] Add content test passed")
+            return True
+        else:
+            print(f"Response: {response.text}")
+            print("[FAIL] Add content test failed")
+            return False
+    except Exception as e:
+        print(f"[FAIL] Add content test failed: {e}")
+        return False
+
 def test_query_with_threshold():
     """Test query with threshold."""
     print("\n=== Testing Query Endpoint (With Threshold) ===")
@@ -175,6 +205,7 @@ def main():
     # Run tests
     results = []
     results.append(("Health Check", test_health()))
+    results.append(("Add Content", test_add_content()))
     results.append(("Basic Query", test_query_basic()))
     results.append(("L2 Distance Query", test_query_l2()))
     results.append(("Inner Product Query", test_query_inner_product()))
