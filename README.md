@@ -159,6 +159,14 @@ curl -X POST http://localhost:8000/query \
   }'
 ```
 
+## Interactive UI
+
+**OpenAI-Style Testing Interface:**
+- Custom chat-like UI: `http://localhost:8000/`
+- Easy-to-use interface for testing all endpoints
+- Real-time JSON response viewer
+- Parameter configuration panel
+
 ## API Documentation
 
 FastAPI automatically generates interactive API documentation:
