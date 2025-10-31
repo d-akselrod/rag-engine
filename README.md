@@ -69,6 +69,33 @@ Health check endpoint.
 }
 ```
 
+### `POST /content`
+Add new document content to the vector database.
+
+**Request Body:**
+```json
+{
+  "content": "Your document content here",
+  "document_id": "doc1",           // Optional
+  "chunk_index": 0,                 // Optional
+  "metadata": {                     // Optional
+    "topic": "AI",
+    "source": "book"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "chunk_id": 5,
+  "content": "Your document content here",
+  "document_id": "doc1",
+  "chunk_index": 0,
+  "message": "Content added successfully"
+}
+```
+
 ### `POST /query`
 Query the RAG engine with custom parameters.
 
