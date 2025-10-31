@@ -1,22 +1,14 @@
 """Main FastAPI application."""
 from fastapi import FastAPI, Depends, HTTPException
-from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
-from src.database import get_db, engine, Base
-from src.services import rag_service
+from src.services_faiss import rag_service
 from src.config import settings
 
-# Create database tables (only if database is available)
-try:
-    Base.metadata.create_all(bind=engine)
-except Exception:
-    # Database not available yet, will be created on first request
-    pass
-
+# No database initialization needed with ChromaDB
 app = FastAPI(
     title="RAG Engine API",
-    description="Custom Retrieval Augmented Generation API with PostgreSQL and Gemini",
+    description="Custom Retrieval Augmented Generation API with FAISS and Gemini",
     version="1.0.0"
 )
 
@@ -46,7 +38,7 @@ class QueryRequest(BaseModel):
 
 class ChunkResponse(BaseModel):
     """Response model for a single chunk."""
-    id: int
+    id: Any
     content: str
     metadata: Optional[str]
     document_id: Optional[str]
@@ -69,10 +61,7 @@ async def health_check():
 
 
 @app.post("/query", response_model=QueryResponse)
-async def query(
-    request: QueryRequest,
-    db: Session = Depends(get_db)
-):
+async def query(request: QueryRequest):
     """
     Query the RAG engine with custom parameters.
     
@@ -84,7 +73,6 @@ async def query(
         
         # Perform similarity search
         chunks = rag_service.similarity_search(
-            db=db,
             query_embedding=query_embedding,
             search_type=request.search_type,
             top_k=request.top_k,
@@ -95,7 +83,7 @@ async def query(
         # Format response
         chunk_responses = [
             ChunkResponse(
-                id=chunk["id"],
+                id=chunk.get("id", 0),
                 content=chunk["content"],
                 metadata=chunk["metadata"],
                 document_id=chunk["document_id"],
