@@ -93,9 +93,19 @@ class AddContentResponse(BaseModel):
     message: str
 
 
+class ChatMessage(BaseModel):
+    """A single message in the conversation."""
+    role: str = Field(..., description="Message role: 'user' or 'assistant'")
+    content: str = Field(..., description="Message content")
+
+
 class ChatRequest(BaseModel):
     """Request model for chat endpoint."""
     message: str = Field(..., description="User's message/query")
+    conversation_history: Optional[List[ChatMessage]] = Field(
+        default=None,
+        description="Previous conversation messages for context"
+    )
     search_type: str = Field(
         default="cosine",
         description="Type of similarity search: 'cosine', 'l2', or 'inner_product'"
@@ -213,20 +223,31 @@ async def add_content(request: AddContentRequest):
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     """
-    Chat endpoint with RAG context.
+    Conversational chat endpoint with RAG context and conversation history.
     
     This endpoint:
     1. Retrieves relevant context from the vector database using RAG
-    2. Sends the user message + context to Gemini Flash LLM
-    3. Returns the AI-generated response
+    2. Includes previous conversation history for context
+    3. Sends the user message + history + context to Gemini Flash LLM
+    4. Returns the AI-generated response
     
     The system uses Retrieval Augmented Generation to provide accurate,
-    context-aware responses based on your knowledge base.
+    context-aware responses based on your knowledge base and maintains
+    conversation context across multiple turns.
     """
     try:
-        # Get RAG-enhanced response
+        # Convert conversation history to dict format
+        history = None
+        if request.conversation_history:
+            history = [
+                {"role": msg.role, "content": msg.content}
+                for msg in request.conversation_history
+            ]
+        
+        # Get RAG-enhanced response with conversation history
         result = rag_service.chat_with_rag(
             user_message=request.message,
+            conversation_history=history,
             search_type=request.search_type,
             top_k=request.top_k,
             temperature=request.temperature,

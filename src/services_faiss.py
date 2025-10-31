@@ -106,16 +106,18 @@ class RAGService:
     def chat_with_rag(
         self,
         user_message: str,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
         search_type: str = "cosine",
         top_k: int = 3,
         temperature: float = 0.7,
         system_prompt: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Chat with RAG context using Gemini Flash.
+        Chat with RAG context using Gemini Flash with conversation history.
         
         Args:
             user_message: User's message/query
+            conversation_history: List of previous messages [{"role": "user/assistant", "content": "..."}]
             search_type: Type of similarity search
             top_k: Number of relevant chunks to retrieve
             temperature: LLM temperature (0.0-1.0)
@@ -125,7 +127,21 @@ class RAGService:
             Dictionary with response and context information
         """
         # Step 1: Retrieve relevant context using RAG
-        query_embedding = self.generate_embedding(user_message, task_type="RETRIEVAL_QUERY")
+        # Use the entire conversation context for better retrieval
+        query_for_retrieval = user_message
+        if conversation_history:
+            # Combine recent conversation with current message for better context
+            recent_context = " ".join([
+                msg.get("content", "") for msg in conversation_history[-3:]
+                if msg.get("role") == "user"
+            ])
+            if recent_context:
+                query_for_retrieval = f"{recent_context} {user_message}"
+        
+        query_embedding = self.generate_embedding(
+            query_for_retrieval, 
+            task_type="RETRIEVAL_QUERY"
+        )
         relevant_chunks = search_similar(
             query_embedding=query_embedding,
             search_type=search_type,
@@ -140,15 +156,43 @@ class RAGService:
                 context_parts.append(f"[Context {i}] {chunk['content']}")
             context_text = "\n\n".join(context_parts)
         
-        # Step 3: Build the prompt with RAG context
+        # Step 3: Build the prompt with RAG context and conversation history
         default_system_prompt = """You are a helpful AI assistant with access to relevant context from a knowledge base. 
-Use the provided context to answer questions accurately. If the context doesn't contain enough information, 
-say so and provide the best answer you can based on your general knowledge."""
+Use the provided context to answer questions accurately. Maintain conversation context and provide natural, 
+conversational responses. If the context doesn't contain enough information, say so and provide the best 
+answer you can based on your general knowledge."""
         
         system_prompt = system_prompt or default_system_prompt
         
+        # Build conversation history string
+        history_text = ""
+        if conversation_history:
+            history_parts = []
+            for msg in conversation_history:
+                role = msg.get("role", "user")
+                content = msg.get("content", "")
+                if role == "user":
+                    history_parts.append(f"User: {content}")
+                else:
+                    history_parts.append(f"Assistant: {content}")
+            history_text = "\n".join(history_parts)
+        
+        # Step 4: Construct full prompt with history and context
         if context_text:
-            full_prompt = f"""{system_prompt}
+            if history_text:
+                full_prompt = f"""{system_prompt}
+
+Previous Conversation:
+{history_text}
+
+Relevant Context from Knowledge Base:
+{context_text}
+
+Current User Question: {user_message}
+
+Please provide a helpful and accurate response based on the context and conversation history above. Maintain conversational flow."""
+            else:
+                full_prompt = f"""{system_prompt}
 
 Relevant Context from Knowledge Base:
 {context_text}
@@ -157,13 +201,23 @@ User Question: {user_message}
 
 Please provide a helpful and accurate response based on the context above."""
         else:
-            full_prompt = f"""{system_prompt}
+            if history_text:
+                full_prompt = f"""{system_prompt}
+
+Previous Conversation:
+{history_text}
+
+Current User Question: {user_message}
+
+Note: No relevant context was found in the knowledge base. Please provide a helpful response based on your general knowledge and the conversation history."""
+            else:
+                full_prompt = f"""{system_prompt}
 
 User Question: {user_message}
 
 Note: No relevant context was found in the knowledge base. Please provide a helpful response based on your general knowledge."""
         
-        # Step 4: Generate response using Gemini Flash
+        # Step 5: Generate response using Gemini Flash
         try:
             response = self.chat_model.generate_content(
                 full_prompt,
