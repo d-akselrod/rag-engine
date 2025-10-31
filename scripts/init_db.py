@@ -27,10 +27,11 @@ def init_database():
         # Enable pgvector extension
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         conn.commit()
-        print("✓ pgvector extension enabled")
+        print("[OK] pgvector extension enabled")
     except Exception as e:
-        print(f"⚠ Could not enable pgvector extension: {e}")
-        print("Make sure PostgreSQL has pgvector installed and you have permissions.")
+        print(f"[WARNING] Could not enable pgvector extension: {e}")
+        print("The database will work but vector search won't function.")
+        print("To install pgvector, download from: https://github.com/pgvector/pgvector/releases")
     
     conn.close()
     
