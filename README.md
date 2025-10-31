@@ -1,14 +1,16 @@
 # RAG Engine API
 
-A custom Retrieval Augmented Generation API built with FastAPI, **FAISS** (Facebook AI Similarity Search), and Google Gemini text-embedding-004.
+A custom Retrieval Augmented Generation API built with FastAPI, **FAISS** (Facebook AI Similarity Search), Google Gemini text-embedding-004, and Gemini Flash LLM for chat.
 
 ## Features
 
 - FastAPI-based REST API
 - **FAISS** vector database (pure Python, no external dependencies)
 - Google Gemini text-embedding-004 for embeddings
+- **Gemini Flash LLM** for intelligent chat with RAG context
 - Customizable search types and parameters (cosine, L2, inner product)
 - Returns retrieved chunks for RAG applications
+- **Chat endpoint** - Ask questions and get AI responses with RAG context
 - **No PostgreSQL required** - uses FAISS for vector storage
 
 ## Prerequisites
