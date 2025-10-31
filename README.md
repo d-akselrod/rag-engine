@@ -1,40 +1,29 @@
 # RAG Engine API
 
-A custom Retrieval Augmented Generation API built with FastAPI, PostgreSQL (pgvector), and Google Gemini text-embedding-001.
+A custom Retrieval Augmented Generation API built with FastAPI, **FAISS** (Facebook AI Similarity Search), and Google Gemini text-embedding-004.
 
 ## Features
 
 - FastAPI-based REST API
-- PostgreSQL with pgvector for vector similarity search
-- Google Gemini text-embedding-001 for embeddings
+- **FAISS** vector database (pure Python, no external dependencies)
+- Google Gemini text-embedding-004 for embeddings
 - Customizable search types and parameters (cosine, L2, inner product)
 - Returns retrieved chunks for RAG applications
+- **No PostgreSQL required** - uses FAISS for vector storage
 
 ## Prerequisites
 
 - Python 3.8+
-- Docker Desktop (for local PostgreSQL with pgvector)
 - Google Gemini API key
 
-## Quick Start with Local PostgreSQL (Docker)
+## Quick Start
 
 1. **Install dependencies:**
 ```bash
 pip install -r requirements.txt
 ```
 
-2. **Start local PostgreSQL database:**
-```bash
-# Using Docker Compose (recommended)
-python scripts/manage_db.py start
-
-# Or manually with Docker Compose
-docker compose up -d
-```
-
-This will start a PostgreSQL 16 container with pgvector extension pre-installed.
-
-3. **Configure environment variables:**
+2. **Configure environment variables:**
    - Create `.env` file:
    ```bash
    # Windows
@@ -44,54 +33,28 @@ This will start a PostgreSQL 16 container with pgvector extension pre-installed.
    cp .env.example .env
    ```
    - Edit `.env` with your configuration:
-     - `DATABASE_URL`: Use the default local Docker database: `postgresql://raguser:ragpass@localhost:5432/ragdb`
      - `GEMINI_API_KEY`: Your Google Gemini API key
 
-4. **Initialize the database:**
+3. **Initialize the database:**
 ```bash
 python scripts/init_db.py
 ```
-This will create the necessary tables and add sample data for testing.
+This will create the FAISS index and add sample data for testing.
 
-5. **Run the API:**
+4. **Run the API:**
 ```bash
 uvicorn src.main:app --reload
 ```
 
 The API will be available at `http://localhost:8000`
 
-## Database Management
+## Why FAISS?
 
-**Start PostgreSQL:**
-```bash
-python scripts/manage_db.py start
-```
-
-**Stop PostgreSQL:**
-```bash
-python scripts/manage_db.py stop
-```
-
-**Check status:**
-```bash
-python scripts/manage_db.py status
-```
-
-## Alternative: Manual PostgreSQL Setup
-
-If you prefer to use your own PostgreSQL instance:
-
-1. Install PostgreSQL and the pgvector extension
-2. Create a database:
-   ```sql
-   CREATE DATABASE ragdb;
-   ```
-3. Connect to the database and enable pgvector:
-   ```sql
-   \c ragdb
-   CREATE EXTENSION IF NOT EXISTS vector;
-   ```
-4. Update `DATABASE_URL` in `.env` with your connection string
+- **Pure Python** - No external database server required
+- **Lightweight** - Stores data locally in `faiss_db/` directory
+- **Fast** - Optimized for similarity search
+- **Easy Setup** - Just `pip install faiss-cpu`
+- **No Configuration** - Works out of the box
 
 ## API Endpoints
 
