@@ -105,9 +105,13 @@ Chat with AI using RAG context (Gemini Flash).
 ```json
 {
   "message": "What is Python?",
-  "search_type": "cosine",        // Optional: "cosine", "l2", or "inner_product"
-  "top_k": 3,                      // Optional: Number of context chunks (1-10)
-  "temperature": 0.7,              // Optional: LLM temperature (0.0-1.0)
+  "conversation_history": [         // Optional: Previous messages for context
+    {"role": "user", "content": "Hello"},
+    {"role": "assistant", "content": "Hi! How can I help?"}
+  ],
+  "search_type": "cosine",         // Optional: "cosine", "l2", or "inner_product"
+  "top_k": 3,                       // Optional: Number of context chunks (1-10)
+  "temperature": 0.7,               // Optional: LLM temperature (0.0-1.0)
   "system_prompt": null             // Optional: Custom system prompt
 }
 ```
@@ -131,8 +135,9 @@ Chat with AI using RAG context (Gemini Flash).
 **How it works:**
 1. User message is embedded and used to search the vector database
 2. Relevant context chunks are retrieved using RAG
-3. Context + user message is sent to Gemini Flash LLM
-4. AI generates a context-aware response
+3. Conversation history + RAG context + user message is sent to Gemini Flash LLM
+4. AI generates a context-aware, conversational response
+5. Conversation history is maintained across multiple turns for natural dialogue
 
 ### `POST /query`
 Query the RAG engine with custom parameters.
