@@ -11,7 +11,7 @@ class EmbeddingService:
 
     def __init__(self):
         genai.configure(api_key=settings.gemini_api_key)
-        self.model_name = "models/gemini-embedding-001"
+        self.model_name = settings.embedding_model
         self.dimension = settings.embedding_dim
 
     def embed_text(self, text: str, task_type: str = "RETRIEVAL_DOCUMENT") -> List[float]:

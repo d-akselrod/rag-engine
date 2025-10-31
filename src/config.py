@@ -1,3 +1,4 @@
+import os
 from pydantic_settings import BaseSettings
 
 
@@ -8,8 +9,8 @@ class Settings(BaseSettings):
     api_port: int = 8000
 
     # Model configuration
-    chat_model: str = "gemini-3.6-flash"
-    embedding_model: str = "models/gemini-embedding-001"
+    chat_model: str = "gemini-3.8-flash"
+    embedding_model: str = "models/gemini-embedding-2"
     embedding_dim: int = 3072
 
     # RAG defaults
