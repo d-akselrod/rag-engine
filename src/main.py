@@ -93,6 +93,40 @@ class AddContentResponse(BaseModel):
     message: str
 
 
+class ChatRequest(BaseModel):
+    """Request model for chat endpoint."""
+    message: str = Field(..., description="User's message/query")
+    search_type: str = Field(
+        default="cosine",
+        description="Type of similarity search: 'cosine', 'l2', or 'inner_product'"
+    )
+    top_k: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="Number of relevant chunks to retrieve for context"
+    )
+    temperature: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        description="LLM temperature (0.0 = deterministic, 1.0 = creative)"
+    )
+    system_prompt: Optional[str] = Field(
+        default=None,
+        description="Optional custom system prompt"
+    )
+
+
+class ChatResponse(BaseModel):
+    """Response model for chat endpoint."""
+    response: str
+    user_message: str
+    context_used: int
+    context_chunks: List[Dict[str, Any]]
+    model: str
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
@@ -174,6 +208,43 @@ async def add_content(request: AddContentRequest):
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error adding content: {str(e)}")
+
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat(request: ChatRequest):
+    """
+    Chat endpoint with RAG context.
+    
+    This endpoint:
+    1. Retrieves relevant context from the vector database using RAG
+    2. Sends the user message + context to Gemini Flash LLM
+    3. Returns the AI-generated response
+    
+    The system uses Retrieval Augmented Generation to provide accurate,
+    context-aware responses based on your knowledge base.
+    """
+    try:
+        # Get RAG-enhanced response
+        result = rag_service.chat_with_rag(
+            user_message=request.message,
+            search_type=request.search_type,
+            top_k=request.top_k,
+            temperature=request.temperature,
+            system_prompt=request.system_prompt
+        )
+        
+        return ChatResponse(
+            response=result["response"],
+            user_message=result["user_message"],
+            context_used=result["context_used"],
+            context_chunks=result.get("context_chunks", []),
+            model=result["model"]
+        )
+    
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error in chat: {str(e)}")
 
 
 if __name__ == "__main__":

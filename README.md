@@ -96,6 +96,42 @@ Add new document content to the vector database.
 }
 ```
 
+### `POST /chat`
+Chat with AI using RAG context (Gemini Flash).
+
+**Request Body:**
+```json
+{
+  "message": "What is Python?",
+  "search_type": "cosine",        // Optional: "cosine", "l2", or "inner_product"
+  "top_k": 3,                      // Optional: Number of context chunks (1-10)
+  "temperature": 0.7,              // Optional: LLM temperature (0.0-1.0)
+  "system_prompt": null             // Optional: Custom system prompt
+}
+```
+
+**Response:**
+```json
+{
+  "response": "Python is a high-level programming language...",
+  "user_message": "What is Python?",
+  "context_used": 3,
+  "context_chunks": [
+    {
+      "content": "Python is a high-level programming language...",
+      "similarity": 0.7688
+    }
+  ],
+  "model": "gemini-1.5-flash"
+}
+```
+
+**How it works:**
+1. User message is embedded and used to search the vector database
+2. Relevant context chunks are retrieved using RAG
+3. Context + user message is sent to Gemini Flash LLM
+4. AI generates a context-aware response
+
 ### `POST /query`
 Query the RAG engine with custom parameters.
 

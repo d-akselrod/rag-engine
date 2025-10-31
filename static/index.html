@@ -299,7 +299,11 @@
         <div class="sidebar">
             <h2>Endpoints</h2>
             <ul class="endpoint-list">
-                <li class="endpoint-item active" data-endpoint="query">
+                <li class="endpoint-item active" data-endpoint="chat">
+                    <span class="method post">POST</span>
+                    <span>/chat</span>
+                </li>
+                <li class="endpoint-item" data-endpoint="query">
                     <span class="method post">POST</span>
                     <span>/query</span>
                 </li>
@@ -321,6 +325,7 @@
                     <div class="message-content">
                         <p>Welcome to the RAG Engine API! Select an endpoint from the sidebar to get started.</p>
                         <p style="margin-top: 0.5rem; color: #8e8ea0; font-size: 0.9rem;">
+                            • <strong>POST /chat</strong> - Chat with AI using RAG context (Gemini Flash)<br>
                             • <strong>POST /query</strong> - Search for similar content<br>
                             • <strong>POST /content</strong> - Add new content to the database<br>
                             • <strong>GET /health</strong> - Check API health status
@@ -360,7 +365,7 @@
 
     <script>
         const API_BASE = 'http://localhost:8000';
-        let currentEndpoint = 'query';
+        let currentEndpoint = 'chat';
 
         // Initialize
         document.querySelectorAll('.endpoint-item').forEach(item => {
@@ -376,8 +381,13 @@
             const paramsPanel = document.getElementById('paramsPanel');
             const input = document.getElementById('userInput');
             
-            if (currentEndpoint === 'query') {
+            if (currentEndpoint === 'chat') {
                 paramsPanel.classList.add('active');
+                document.getElementById('searchType').parentElement.style.display = 'block';
+                input.placeholder = 'Ask me anything! I\'ll use RAG to find relevant context and answer...';
+            } else if (currentEndpoint === 'query') {
+                paramsPanel.classList.add('active');
+                document.getElementById('searchType').parentElement.style.display = 'block';
                 input.placeholder = 'Enter your search query...';
             } else if (currentEndpoint === 'content') {
                 paramsPanel.classList.remove('active');
@@ -436,7 +446,26 @@
             try {
                 let response;
                 
-                if (currentEndpoint === 'query') {
+                if (currentEndpoint === 'chat') {
+                    const payload = {
+                        message: query,
+                        search_type: document.getElementById('searchType').value,
+                        top_k: parseInt(document.getElementById('topK').value),
+                        temperature: 0.7
+                    };
+                    
+                    const threshold = document.getElementById('threshold').value;
+                    if (threshold) {
+                        payload.threshold = parseFloat(threshold);
+                    }
+                    
+                    response = await fetch(`${API_BASE}/chat`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                } else if (currentEndpoint === 'query') {
                     const payload = {
                         query: query,
                         search_type: document.getElementById('searchType').value,
@@ -472,10 +501,19 @@
                 const data = await response.json();
                 
                 if (response.ok) {
-                    addMessage('assistant', '', true);
-                    // Update the last message with formatted JSON
-                    const lastMessage = document.querySelector('.message.assistant:last-child .message-content');
-                    lastMessage.innerHTML = '<div class="response-json">' + JSON.stringify(data, null, 2) + '</div>';
+                    if (currentEndpoint === 'chat') {
+                        // For chat, show response naturally
+                        let chatResponse = data.response;
+                        if (data.context_used > 0) {
+                            chatResponse += `\n\n[Used ${data.context_used} context chunks from knowledge base]`;
+                        }
+                        addMessage('assistant', chatResponse);
+                    } else {
+                        addMessage('assistant', '', true);
+                        // Update the last message with formatted JSON
+                        const lastMessage = document.querySelector('.message.assistant:last-child .message-content');
+                        lastMessage.innerHTML = '<div class="response-json">' + JSON.stringify(data, null, 2) + '</div>';
+                    }
                 } else {
                     addMessage('assistant', `Error: ${data.detail || 'Unknown error'}`);
                 }
