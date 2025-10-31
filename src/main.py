@@ -54,6 +54,32 @@ class QueryResponse(BaseModel):
     top_k: int
 
 
+class AddContentRequest(BaseModel):
+    """Request model for adding content endpoint."""
+    content: str = Field(..., description="The document content to add")
+    document_id: Optional[str] = Field(
+        default=None,
+        description="Optional document identifier"
+    )
+    chunk_index: Optional[int] = Field(
+        default=None,
+        description="Optional chunk index within the document"
+    )
+    metadata: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Optional metadata dictionary"
+    )
+
+
+class AddContentResponse(BaseModel):
+    """Response model for adding content endpoint."""
+    chunk_id: int
+    content: str
+    document_id: Optional[str]
+    chunk_index: Optional[int]
+    message: str
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
@@ -104,6 +130,37 @@ async def query(request: QueryRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@app.post("/content", response_model=AddContentResponse)
+async def add_content(request: AddContentRequest):
+    """
+    Add document content to the vector database.
+    
+    This endpoint will:
+    1. Generate an embedding for the content using Gemini
+    2. Store the content and embedding in FAISS
+    3. Return the chunk ID and confirmation
+    """
+    try:
+        # Add document chunk (generates embedding automatically)
+        chunk_id = rag_service.add_document_chunk(
+            content=request.content,
+            document_id=request.document_id,
+            chunk_index=request.chunk_index,
+            metadata=request.metadata
+        )
+        
+        return AddContentResponse(
+            chunk_id=chunk_id,
+            content=request.content,
+            document_id=request.document_id,
+            chunk_index=request.chunk_index,
+            message="Content added successfully"
+        )
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error adding content: {str(e)}")
 
 
 if __name__ == "__main__":
