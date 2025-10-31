@@ -1,16 +1,29 @@
 """Main FastAPI application."""
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
+from pathlib import Path
 from src.services_faiss import rag_service
 from src.config import settings
 
-# No database initialization needed with ChromaDB
+# No database initialization needed with FAISS
 app = FastAPI(
     title="RAG Engine API",
     description="Custom Retrieval Augmented Generation API with FAISS and Gemini",
     version="1.0.0"
 )
+
+# Serve static files (OpenAI-style UI)
+static_dir = Path("static")
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+    
+    @app.get("/")
+    async def root():
+        """Serve the OpenAI-style UI."""
+        return FileResponse(static_dir / "index.html")
 
 
 class QueryRequest(BaseModel):
