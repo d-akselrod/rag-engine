@@ -112,12 +112,17 @@ When you add content via `POST /content`:
 #### 2. Query Processing
 When you query via `POST /query` or `POST /chat`:
 1. **Embedding Generation**: Query is converted to embedding vector
-2. **Similarity Search**: FAISS finds most similar vectors using:
+2. **Initial Similarity Search**: FAISS finds most similar vectors using:
    - **Cosine Similarity**: Measures angle between vectors (0-1, higher = more similar)
    - **L2 Distance**: Euclidean distance (lower = more similar)
    - **Inner Product**: Dot product (higher = more similar)
-3. **Ranking**: Results sorted by similarity score
-4. **Retrieval**: Top-K most similar chunks returned
+3. **Reranking (Optional)**: If enabled:
+   - Retrieves `top_k * 2` candidates from initial search
+   - Re-embeds query and all candidates with fresh embeddings
+   - Recalculates similarity scores for more accurate ranking
+   - Returns top `rerank_top_k` most relevant results
+4. **Ranking**: Results sorted by similarity score
+5. **Retrieval**: Top-K most similar chunks returned
 
 #### 3. Chat Enhancement (POST /chat)
 For conversational responses:
@@ -354,7 +359,9 @@ curl -X POST http://localhost:8000/query \
     "query": "machine learning algorithms",
     "search_type": "cosine",
     "top_k": 3,
-    "threshold": 0.6
+    "threshold": 0.6,
+    "rerank": true,
+    "rerank_top_k": 3
   }'
 ```
 
