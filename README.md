@@ -310,7 +310,9 @@ Semantic search endpoint. Returns relevant document chunks based on similarity s
   "search_type": "cosine",          // Optional: "cosine", "l2", or "inner_product"
   "top_k": 5,                       // Optional: Number of results (1-100)
   "threshold": 0.5,                 // Optional: Minimum similarity (0.0-1.0)
-  "metadata_filter": null           // Optional: Filter by metadata (not implemented)
+  "metadata_filter": null,           // Optional: Filter by metadata (not implemented)
+  "rerank": false,                  // Optional: Enable reranking for better accuracy
+  "rerank_top_k": null              // Optional: Number of results after reranking
 }
 ```
 
@@ -382,6 +384,8 @@ Conversational chat endpoint with RAG. Returns AI-generated responses using your
   "search_type": "cosine",         // Optional: "cosine", "l2", or "inner_product"
   "top_k": 3,                       // Optional: Context chunks to retrieve (1-10)
   "temperature": 0.7,               // Optional: LLM creativity (0.0-1.0)
+  "rerank": false,                  // Optional: Enable reranking for better context
+  "rerank_top_k": null,             // Optional: Number of results after reranking
   "system_prompt": null            // Optional: Custom system prompt
 }
 ```
@@ -406,6 +410,8 @@ Conversational chat endpoint with RAG. Returns AI-generated responses using your
 - **`temperature`**: Controls randomness (0.0 = deterministic, 1.0 = creative)
 - **`top_k`**: Number of RAG context chunks (fewer = more focused, more = broader context)
 - **`conversation_history`**: Previous messages for context-aware responses
+- **`rerank`**: Enable reranking for more accurate context retrieval (default: false)
+- **`rerank_top_k`**: Number of results after reranking (defaults to `top_k` if not specified)
 
 **Example:**
 ```bash
@@ -414,7 +420,9 @@ curl -X POST http://localhost:8000/chat \
   -d '{
     "message": "Explain deep learning",
     "top_k": 3,
-    "temperature": 0.8
+    "temperature": 0.8,
+    "rerank": true,
+    "rerank_top_k": 3
   }'
 ```
 
