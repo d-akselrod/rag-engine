@@ -788,10 +788,6 @@ The project includes `docker-compose.yml` for PostgreSQL (legacy). FAISS doesn't
 - HTTPS in production
 - API key rotation
 
-## 📝 License
-
-MIT License - feel free to use this project for any purpose.
-
 ## 🤝 Contributing
 
 Contributions welcome! Areas for improvement:
