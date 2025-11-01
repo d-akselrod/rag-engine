@@ -92,7 +92,6 @@ class RAGService:
         query_array = np.array([query_embedding], dtype=np.float32)
         faiss.normalize_L2(query_array)
         
-        chunk_embeddings = []
         valid_chunks = []
         
         for chunk in chunks:
