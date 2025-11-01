@@ -333,6 +333,19 @@ Semantic search endpoint. Returns relevant document chunks based on similarity s
 - **`l2`**: Euclidean distance (lower = more similar) - Good for comparing magnitudes
 - **`inner_product`**: Dot product (higher = more similar) - Fast but less intuitive
 
+**Reranking:**
+Reranking improves search accuracy by:
+1. Retrieving `top_k * 2` initial candidates
+2. Re-embedding the query and all candidates for fresh similarity scores
+3. Re-sorting by new similarity scores
+4. Returning the top `rerank_top_k` (or `top_k`) most relevant results
+
+**When to use reranking:**
+- When precision is more important than speed
+- For complex queries where semantic meaning matters
+- When initial search results don't match well
+- Note: Reranking adds latency (requires additional API calls)
+
 **Example:**
 ```bash
 curl -X POST http://localhost:8000/query \
