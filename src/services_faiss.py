@@ -1,4 +1,6 @@
 import google.generativeai as genai
+import numpy as np
+import faiss
 from typing import List, Dict, Any, Optional
 from src.config import settings
 from src.faiss_db import (
@@ -59,15 +61,58 @@ class RAGService:
         search_type: str = "cosine",
         top_k: int = 5,
         threshold: Optional[float] = None,
-        metadata_filter: Optional[Dict[str, Any]] = None
+        metadata_filter: Optional[Dict[str, Any]] = None,
+        rerank: bool = False,
+        query_text: Optional[str] = None,
+        rerank_top_k: Optional[int] = None
     ) -> List[Dict[str, Any]]:
-        return search_similar(
+        chunks = search_similar(
             query_embedding=query_embedding,
             search_type=search_type,
-            top_k=top_k,
+            top_k=top_k * 2 if rerank else top_k,
             threshold=threshold,
             metadata_filter=metadata_filter
         )
+        
+        if rerank and query_text and len(chunks) > 1:
+            chunks = self._rerank_chunks(chunks, query_text, rerank_top_k or top_k)
+        
+        return chunks
+    
+    def _rerank_chunks(
+        self,
+        chunks: List[Dict[str, Any]],
+        query_text: str,
+        top_k: int
+    ) -> List[Dict[str, Any]]:
+        if not chunks or len(chunks) <= 1:
+            return chunks[:top_k]
+        
+        query_embedding = self.generate_embedding(query_text, task_type="RETRIEVAL_QUERY")
+        query_array = np.array([query_embedding], dtype=np.float32)
+        faiss.normalize_L2(query_array)
+        
+        chunk_embeddings = []
+        valid_chunks = []
+        
+        for chunk in chunks:
+            chunk_content = chunk.get("content", "")
+            if not chunk_content:
+                continue
+            
+            chunk_embedding = self.generate_embedding(chunk_content, task_type="RETRIEVAL_DOCUMENT")
+            chunk_array = np.array([chunk_embedding], dtype=np.float32)
+            faiss.normalize_L2(chunk_array)
+            
+            similarity = float(np.dot(query_array[0], chunk_array[0]))
+            
+            valid_chunks.append({
+                **chunk,
+                "similarity": similarity
+            })
+        
+        valid_chunks.sort(key=lambda x: x["similarity"], reverse=True)
+        return valid_chunks[:top_k]
     
     def get_info(self) -> Dict[str, Any]:
         return get_info()
@@ -79,7 +124,9 @@ class RAGService:
         search_type: str = "cosine",
         top_k: int = 3,
         temperature: float = 0.7,
-        system_prompt: Optional[str] = None
+        system_prompt: Optional[str] = None,
+        rerank: bool = False,
+        rerank_top_k: Optional[int] = None
     ) -> Dict[str, Any]:
         query_for_retrieval = user_message
         if conversation_history:
@@ -94,10 +141,13 @@ class RAGService:
             query_for_retrieval, 
             task_type="RETRIEVAL_QUERY"
         )
-        relevant_chunks = search_similar(
+        relevant_chunks = self.similarity_search(
             query_embedding=query_embedding,
             search_type=search_type,
-            top_k=top_k
+            top_k=top_k,
+            rerank=rerank,
+            query_text=user_message,
+            rerank_top_k=rerank_top_k or top_k
         )
         
         context_text = ""

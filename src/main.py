@@ -42,6 +42,14 @@ class QueryRequest(BaseModel):
         default=None,
         description="Optional metadata filters"
     )
+    rerank: bool = Field(
+        default=False,
+        description="Enable reranking for better results"
+    )
+    rerank_top_k: Optional[int] = Field(
+        default=None,
+        description="Number of results after reranking (if rerank enabled)"
+    )
 
 
 class ChunkResponse(BaseModel):
@@ -111,6 +119,14 @@ class ChatRequest(BaseModel):
         le=1.0,
         description="LLM temperature (0.0 = deterministic, 1.0 = creative)"
     )
+    rerank: bool = Field(
+        default=False,
+        description="Enable reranking for better context retrieval"
+    )
+    rerank_top_k: Optional[int] = Field(
+        default=None,
+        description="Number of results after reranking (if rerank enabled)"
+    )
     system_prompt: Optional[str] = Field(
         default=None,
         description="Optional custom system prompt"
@@ -139,7 +155,10 @@ async def query(request: QueryRequest):
             search_type=request.search_type,
             top_k=request.top_k,
             threshold=request.threshold,
-            metadata_filter=request.metadata_filter
+            metadata_filter=request.metadata_filter,
+            rerank=request.rerank,
+            query_text=request.query if request.rerank else None,
+            rerank_top_k=request.rerank_top_k
         )
         chunk_responses = [
             ChunkResponse(
@@ -203,7 +222,9 @@ async def chat(request: ChatRequest):
             search_type=request.search_type,
             top_k=request.top_k,
             temperature=request.temperature,
-            system_prompt=request.system_prompt
+            system_prompt=request.system_prompt,
+            rerank=request.rerank,
+            rerank_top_k=request.rerank_top_k
         )
         
         return ChatResponse(
