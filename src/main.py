@@ -1,5 +1,4 @@
-"""Main FastAPI application."""
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -8,26 +7,22 @@ from pathlib import Path
 from src.services_faiss import rag_service
 from src.config import settings
 
-# No database initialization needed with FAISS
 app = FastAPI(
     title="RAG Engine API",
     description="Custom Retrieval Augmented Generation API with FAISS and Gemini",
     version="1.0.0"
 )
 
-# Serve static files (OpenAI-style UI)
 static_dir = Path("static")
 if static_dir.exists():
     app.mount("/static", StaticFiles(directory="static"), name="static")
     
     @app.get("/")
     async def root():
-        """Serve the OpenAI-style UI."""
         return FileResponse(static_dir / "index.html")
 
 
 class QueryRequest(BaseModel):
-    """Request model for query endpoint."""
     query: str = Field(..., description="The search query")
     search_type: str = Field(
         default="cosine",
@@ -50,7 +45,6 @@ class QueryRequest(BaseModel):
 
 
 class ChunkResponse(BaseModel):
-    """Response model for a single chunk."""
     id: Any
     content: str
     metadata: Optional[str]
@@ -60,7 +54,6 @@ class ChunkResponse(BaseModel):
 
 
 class QueryResponse(BaseModel):
-    """Response model for query endpoint."""
     query: str
     chunks: List[ChunkResponse]
     search_type: str
@@ -68,7 +61,6 @@ class QueryResponse(BaseModel):
 
 
 class AddContentRequest(BaseModel):
-    """Request model for adding content endpoint."""
     content: str = Field(..., description="The document content to add")
     document_id: Optional[str] = Field(
         default=None,
@@ -85,7 +77,6 @@ class AddContentRequest(BaseModel):
 
 
 class AddContentResponse(BaseModel):
-    """Response model for adding content endpoint."""
     chunk_id: int
     content: str
     document_id: Optional[str]
@@ -94,13 +85,11 @@ class AddContentResponse(BaseModel):
 
 
 class ChatMessage(BaseModel):
-    """A single message in the conversation."""
     role: str = Field(..., description="Message role: 'user' or 'assistant'")
     content: str = Field(..., description="Message content")
 
 
 class ChatRequest(BaseModel):
-    """Request model for chat endpoint."""
     message: str = Field(..., description="User's message/query")
     conversation_history: Optional[List[ChatMessage]] = Field(
         default=None,
@@ -129,7 +118,6 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    """Response model for chat endpoint."""
     response: str
     user_message: str
     context_used: int
@@ -139,22 +127,13 @@ class ChatResponse(BaseModel):
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint."""
     return {"status": "healthy", "service": "rag-engine"}
 
 
 @app.post("/query", response_model=QueryResponse)
 async def query(request: QueryRequest):
-    """
-    Query the RAG engine with custom parameters.
-    
-    Returns relevant document chunks based on the query and search parameters.
-    """
     try:
-        # Generate embedding for query
         query_embedding = rag_service.generate_embedding(request.query, task_type="RETRIEVAL_QUERY")
-        
-        # Perform similarity search
         chunks = rag_service.similarity_search(
             query_embedding=query_embedding,
             search_type=request.search_type,
@@ -162,8 +141,6 @@ async def query(request: QueryRequest):
             threshold=request.threshold,
             metadata_filter=request.metadata_filter
         )
-        
-        # Format response
         chunk_responses = [
             ChunkResponse(
                 id=chunk.get("id", 0),
@@ -191,16 +168,7 @@ async def query(request: QueryRequest):
 
 @app.post("/content", response_model=AddContentResponse)
 async def add_content(request: AddContentRequest):
-    """
-    Add document content to the vector database.
-    
-    This endpoint will:
-    1. Generate an embedding for the content using Gemini
-    2. Store the content and embedding in FAISS
-    3. Return the chunk ID and confirmation
-    """
     try:
-        # Add document chunk (generates embedding automatically)
         chunk_id = rag_service.add_document_chunk(
             content=request.content,
             document_id=request.document_id,
@@ -222,29 +190,13 @@ async def add_content(request: AddContentRequest):
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
-    """
-    Conversational chat endpoint with RAG context and conversation history.
-    
-    This endpoint:
-    1. Retrieves relevant context from the vector database using RAG
-    2. Includes previous conversation history for context
-    3. Sends the user message + history + context to Gemini Flash LLM
-    4. Returns the AI-generated response
-    
-    The system uses Retrieval Augmented Generation to provide accurate,
-    context-aware responses based on your knowledge base and maintains
-    conversation context across multiple turns.
-    """
     try:
-        # Convert conversation history to dict format
         history = None
         if request.conversation_history:
             history = [
                 {"role": msg.role, "content": msg.content}
                 for msg in request.conversation_history
             ]
-        
-        # Get RAG-enhanced response with conversation history
         result = rag_service.chat_with_rag(
             user_message=request.message,
             conversation_history=history,

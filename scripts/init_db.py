@@ -1,28 +1,19 @@
-"""Script to initialize ChromaDB and add sample data."""
 import sys
-import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Add parent directory to path so we can import src modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
-
-# Load environment variables
 load_dotenv()
 
 from src.services_faiss import rag_service
 from src.faiss_db import clear_all
 
 def init_database():
-    """Initialize FAISS database."""
     print("Initializing FAISS database...")
-    
-    # Clear existing data to start fresh
     clear_all()
     print("[OK] FAISS database initialized")
 
 def add_sample_data():
-    """Add sample document chunks to the database."""
     print("\nAdding sample data...")
     
     sample_chunks = [
@@ -60,7 +51,6 @@ def add_sample_data():
     
     try:
         for chunk_data in sample_chunks:
-            # Add chunk (will generate embedding automatically)
             chunk_id = rag_service.add_document_chunk(
                 content=chunk_data["content"],
                 document_id=chunk_data["document_id"],
